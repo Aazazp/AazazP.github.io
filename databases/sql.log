@@ -1,0 +1,134 @@
+timestamp: 2024-05-15T18:46:10.256136
+CREATE TABLE "auth_user"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "first_name" CHAR(128),
+    "last_name" CHAR(128),
+    "email" CHAR(512),
+    "password" CHAR(512),
+    "registration_key" CHAR(512),
+    "reset_password_key" CHAR(512),
+    "registration_id" CHAR(512)
+);
+success!
+timestamp: 2024-05-15T18:46:10.261147
+CREATE TABLE "auth_group"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "role" CHAR(512),
+    "description" TEXT
+);
+success!
+timestamp: 2024-05-15T18:46:10.264326
+CREATE TABLE "auth_membership"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "user_id" INTEGER REFERENCES "auth_user" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "group_id" INTEGER REFERENCES "auth_group" ("id") ON DELETE CASCADE ON UPDATE CASCADE  
+);
+success!
+timestamp: 2024-05-15T18:46:10.266360
+CREATE TABLE "auth_permission"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "group_id" INTEGER REFERENCES "auth_group" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "name" CHAR(512),
+    "table_name" CHAR(512),
+    "record_id" INTEGER
+);
+success!
+timestamp: 2024-05-15T18:46:10.268846
+CREATE TABLE "auth_event"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "time_stamp" TIMESTAMP,
+    "client_ip" CHAR(512),
+    "user_id" INTEGER REFERENCES "auth_user" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "origin" CHAR(512),
+    "description" TEXT
+);
+success!
+timestamp: 2024-05-15T18:46:10.270598
+CREATE TABLE "auth_cas"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "user_id" INTEGER REFERENCES "auth_user" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "created_on" TIMESTAMP,
+    "service" CHAR(512),
+    "ticket" CHAR(512),
+    "renew" CHAR(1)
+);
+success!
+timestamp: 2024-05-15T18:46:10.273502
+CREATE TABLE "states"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "state_name" CHAR(512) NOT NULL
+);
+success!
+timestamp: 2024-05-15T18:46:10.279155
+CREATE TABLE "brands"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "brand_name" CHAR(512) NOT NULL,
+    "city" CHAR(512) NOT NULL,
+    "state_id" INTEGER REFERENCES "states" ("id") ON DELETE CASCADE ON UPDATE CASCADE  NOT NULL ,
+    "zip_code" CHAR(512),
+    "website" CHAR(512),
+    "phone_number" CHAR(512)
+);
+success!
+timestamp: 2024-05-15T18:46:10.281203
+CREATE TABLE "customers"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "first_name" CHAR(512) NOT NULL,
+    "last_name" CHAR(512) NOT NULL,
+    "city" CHAR(512) NOT NULL,
+    "state_id" INTEGER REFERENCES "states" ("id") ON DELETE CASCADE ON UPDATE CASCADE  NOT NULL ,
+    "zip_code" CHAR(512),
+    "phone_number" CHAR(512),
+    "email" CHAR(512),
+    "birthday" DATE,
+    "comments" TEXT,
+    "created_by" INTEGER REFERENCES "auth_user" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "created_on" TIMESTAMP
+);
+success!
+timestamp: 2024-05-15T18:46:10.283456
+CREATE TABLE "events"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "user_id" INTEGER REFERENCES "auth_user" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "customer_id" INTEGER REFERENCES "customers" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "comm_type" CHAR(512),
+    "event_datetime" TIMESTAMP,
+    "status" CHAR(512),
+    "event_type" CHAR(512),
+    "comments" TEXT
+);
+success!
+timestamp: 2024-05-15T18:46:10.285064
+CREATE TABLE "products"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "product_name" CHAR(512) NOT NULL,
+    "category" CHAR(512),
+    "strain" CHAR(512),
+    "description" TEXT,
+    "thc_content" DOUBLE,
+    "cbd_content" DOUBLE,
+    "price" DOUBLE,
+    "stock_quantity" INTEGER,
+    "created_by" INTEGER REFERENCES "auth_user" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "created_on" TIMESTAMP
+);
+success!
+timestamp: 2024-05-15T18:46:10.286357
+CREATE TABLE "orders"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "customer_id" INTEGER REFERENCES "customers" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "product_id" INTEGER REFERENCES "products" ("id") ON DELETE CASCADE ON UPDATE CASCADE  ,
+    "quantity" INTEGER NOT NULL,
+    "ordered_on" TIMESTAMP
+);
+success!
+timestamp: 2024-05-29T12:22:18.108140
+CREATE TABLE "shoutouts"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "textcontent" TEXT,
+    "created_on" TIMESTAMP
+);
+success!
+timestamp: 2024-05-30T12:04:44.567735
+ALTER TABLE "shoutouts" ADD "likes" INTEGER;
+success!

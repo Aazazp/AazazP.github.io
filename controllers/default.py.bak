@@ -1,0 +1,422 @@
+# -*- coding: utf-8 -*-
+# -------------------------------------------------------------------------
+# This is a sample controller
+# this file is released under public domain and you can use without limitations
+# -------------------------------------------------------------------------
+
+
+# ---- example index page ----
+def delete_shoutout():
+    if request.env.request_method == 'POST':
+        shoutout_id = request.post_vars.id
+        db(db.shoutouts.id == shoutout_id).delete()
+    return dict()
+
+def add_shoutout():
+    if request.method == 'POST':
+        shoutout_text = request.vars.shoutout
+        db.shoutouts.insert(textcontent=shoutout_text)
+        redirect(URL('default', 'shoutouts'))
+    return dict()
+
+def shoutouts():
+    shoutouts = db().select(
+        db.shoutouts.ALL,
+        orderby=~db.shoutouts.created_on
+    )
+    return dict(shoutouts=shoutouts)
+
+def like_shoutout():
+    shoutout_id = request.vars.id
+    shoutout = db.shoutouts(shoutout_id)
+    if shoutout:
+        # Increment the like count for the shoutout
+        shoutout.update_record(likes=shoutout.likes + 1)
+        # Return the updated like count as JSON response
+        return response.json({'likes': shoutout.likes})
+
+
+def vieworder():
+    response.view = "default/vieworder.html"
+    orderid=request.vars.orderid
+    sqlstmt = "SELECT first_name,last_name,product_name,price,strain, ordered_on AS order_date, quantity FROM orders o JOIN products p ON o.product_id = p.id JOIN customers c ON c.id=o.customer_id WHERE o.id="+str(orderid)
+    rows=db.executesql(sqlstmt,as_dict = True)
+    #form=crud.read(db.orders,orderid)
+    return locals()
+
+
+def index():
+    import datetime
+    
+
+
+    # Fetch the top 3 most recent orders
+    recent_orders = []
+    orders = db().select(
+        db.orders.ALL, db.customers.ALL, db.products.ALL,
+        join=[
+            db.orders.on(db.orders.customer_id == db.customers.id),
+            db.products.on(db.orders.product_id == db.products.id)
+        ],
+        orderby=~db.orders.ordered_on,
+        limitby=(0, 3)  # Limit to the top 3 recent orders
+    )
+
+    for order in orders:
+        # Fetch the state name for the customer
+        state = db(db.states.id == order.customers.state_id).select().first()
+        state_name = state.state_name if state else 'N/A'
+
+        # Calculate days ago
+        current_datetime = datetime.datetime.now()
+        order_datetime = order.orders.ordered_on
+        days_ago = (current_datetime - order_datetime).days
+
+        # Prepare the order details
+        order_details = {
+            'id': order.orders.id,  # Directly access the id field of the orders table
+            'name': f"{order.customers.first_name} {order.customers.last_name}",
+            'state': state_name,
+            'days_ago': days_ago,
+            'product': order.products.product_name,
+            'strain': order.products.strain,
+            'price': order.products.price,
+            'quantity': order.orders.quantity,
+            'date': order.orders.ordered_on,
+            'stock': order.products.stock_quantity
+        }
+        recent_orders.append(order_details)
+
+    # Fetch the aggregate data
+    sqlstmt = "SELECT SUM(o.quantity) as howmany, strain FROM orders o JOIN products p ON o.product_id = p.id GROUP BY strain"
+    rows = db.executesql(sqlstmt, as_dict=True)
+
+    # Get the logged-in user's ID
+    user_id = auth.user_id
+
+    # Query the events table to count the number of open calls and emails for the logged-in user
+    new_calls_count = db(
+        (db.events.user_id == user_id)
+        & (db.events.status == "Open")
+        & ((db.events.event_type == "Call"))
+    ).count()
+    
+    old_calls_count = db(
+        (db.events.user_id == user_id)
+        & (db.events.status == "Closed")
+        & ((db.events.event_type == "Call"))
+    ).count()
+
+    # Query the events table to count the number of new emails for the logged-in user
+    new_emails_count = db(
+        (db.events.user_id == user_id) &
+        (db.events.status == 'Open') &
+        (db.events.event_type == 'Email')
+    ).count()
+    
+    old_emails_count = db(
+        (db.events.user_id == user_id) &
+        (db.events.status == 'Closed') &
+        (db.events.event_type == 'Email')
+    ).count()
+
+
+    # Query the events table to count the number of new in-person inquiries for the logged-in user
+    new_in_person_inquiries_count = db(
+        (db.events.user_id == user_id) &
+        (db.events.comm_type == 'In person')&
+        (db.events.status == 'Open')
+    ).count()
+    
+    
+
+    # Query the events table to count the number of new calls for the logged-in user
+    all_calls_count = db(
+        (db.events.user_id == user_id) &
+        (db.events.event_type == 'Call')
+    ).count()
+    
+    all_emails_count = db(
+        (db.events.user_id == user_id) &
+        (db.events.event_type == 'Email')
+    ).count()
+    
+    all_in_person_inquiries_count = db(
+        (db.events.user_id == user_id) &
+        (db.events.comm_type == 'In person')
+    ).count()
+    
+    
+    # Build the SQL statement dynamically based on the provided filters
+    user_id = auth.user_id
+    
+    # Build the SQL statement dynamically based on the provided filters
+    sqlstmt_events = (
+        "SELECT user_id, events.comments, email, birthday, customer_id, phone_number, customers.first_name, customers.last_name, status, event_type "
+        "FROM events JOIN customers ON (events.customer_id = customers.id) "
+        f"WHERE user_id = {user_id} "
+    )
+    
+    events = db.executesql(sqlstmt_events, as_dict=True)
+
+    return dict(
+        recent_orders=recent_orders, 
+        rows=rows, 
+        new_calls_count=new_calls_count, 
+        new_emails_count=new_emails_count,
+        new_in_person_inquiries_count=new_in_person_inquiries_count,
+        all_calls_count=all_calls_count,
+        all_emails_count=all_emails_count,
+        all_in_person_inquiries_count = all_in_person_inquiries_count,
+        old_calls_count = old_calls_count,
+        old_emails_count = old_emails_count,
+        events=events
+    )
+
+
+
+def about():
+    return dict(message="About us")
+
+
+@auth.requires_login()
+def personal():
+    user_id = auth.user_id
+    event_type = request.args(0)
+    status = request.args(1)
+    
+    # Build the SQL statement dynamically based on the provided filters
+    sqlstmt_events = (
+        "SELECT user_id, customer_id, status, event_type, COUNT(*) AS event_count "
+        "FROM events "
+        f"WHERE user_id = {user_id} "
+    )
+    
+    # Add conditions for event_type and status if provided
+    if event_type:
+        sqlstmt_events += f"AND event_type = '{event_type}' "
+    if status:
+        sqlstmt_events += f"AND status = '{status}' "
+    
+    sqlstmt_events += (
+        "AND comm_type IN ('Phone', 'Email', 'In person') "
+        "GROUP BY user_id, status, event_type"
+    )
+
+    rows = db.executesql(sqlstmt_events, as_dict=True)
+    return dict(rows=rows)
+
+
+
+
+
+def productz():
+    return dict(message="Our products")
+
+
+def get_state_abbr():
+    state_abbreviations = {
+        "Alabama": "AL",
+        "Alaska": "AK",
+        "Arizona": "AZ",
+        "Arkansas": "AR",
+        "California": "CA",
+        "Colorado": "CO",
+        "Connecticut": "CT",
+        "Delaware": "DE",
+        "Florida": "FL",
+        "Georgia": "GA",
+        "Hawaii": "HI",
+        "Idaho": "ID",
+        "Illinois": "IL",
+        "Indiana": "IN",
+        "Iowa": "IA",
+        "Kansas": "KS",
+        "Kentucky": "KY",
+        "Louisiana": "LA",
+        "Maine": "ME",
+        "Maryland": "MD",
+        "Massachusetts": "MA",
+        "Michigan": "MI",
+        "Minnesota": "MN",
+        "Mississippi": "MS",
+        "Missouri": "MO",
+        "Montana": "MT",
+        "Nebraska": "NE",
+        "Nevada": "NV",
+        "New Hampshire": "NH",
+        "New Jersey": "NJ",
+        "New Mexico": "NM",
+        "New York": "NY",
+        "North Carolina": "NC",
+        "North Dakota": "ND",
+        "Ohio": "OH",
+        "Oklahoma": "OK",
+        "Oregon": "OR",
+        "Pennsylvania": "PA",
+        "Rhode Island": "RI",
+        "South Carolina": "SC",
+        "South Dakota": "SD",
+        "Tennessee": "TN",
+        "Texas": "TX",
+        "Utah": "UT",
+        "Vermont": "VT",
+        "Virginia": "VA",
+        "Washington": "WA",
+        "West Virginia": "WV",
+        "Wisconsin": "WI",
+        "Wyoming": "WY",
+    }
+    return state_abbreviations
+
+
+def cannalytics():
+    # Queries
+    sold_by_state = (
+        "SELECT SUM(o.quantity) as howmany, s.state_name "
+        " FROM orders o JOIN customers c ON o.customer_id = c.id "
+        " JOIN states s ON c.state_id = s.id GROUP BY s.state_name"
+    )
+    strain_sold = (
+        "SELECT SUM(o.quantity) as howmany, strain "
+        " FROM orders o JOIN products p ON o.product_id = p.id "
+        " GROUP BY strain"
+    )
+    money_made = (
+        "SELECT date(ordered_on) AS ordered_on, SUM(o.quantity * price) as total_order_amount "
+        " FROM orders o JOIN products p ON o.product_id = p.id "
+        " Where date(ordered_on)>'2024-05-15' "
+        " GROUP BY date(ordered_on) "
+    )
+    category_sold = (
+        "SELECT SUM(o.quantity) as howmany, category "
+        " FROM orders o JOIN products p ON o.product_id = p.id "
+        " GROUP BY category"
+    )
+    products_sold = (
+        "SELECT SUM(o.quantity) as howmany, product_name"
+        " FROM orders o JOIN products p ON o.product_id = p.id "
+        " GROUP BY product_name"
+    )
+    customer_orders = (
+        "SELECT COUNT(o.id) as howmany, c.first_name, c.last_name"
+        " FROM orders o JOIN customers c ON o.customer_id = c.id "
+        " GROUP BY c.first_name, c.last_name"
+        " ORDER BY howmany DESC"
+        " LIMIT 10"
+    )
+
+    # Execute the queries
+    sold_by_state_rows = db.executesql(sold_by_state, as_dict=True)
+    strain_rows = db.executesql(strain_sold, as_dict=True)
+    category_rows = db.executesql(category_sold, as_dict=True)
+    product_rows = db.executesql(products_sold, as_dict=True)
+    customer_orders_rows = db.executesql(customer_orders, as_dict=True)
+    money_made_rows = db.executesql(money_made, as_dict=True)
+
+    # get state abbreviations
+    state_abbrs = get_state_abbr()
+
+    # Convert state names to abbreviations for state map
+    for row in sold_by_state_rows:
+        row["state_name"] = state_abbrs.get(row["state_name"], row["state_name"])
+
+    return dict(
+        strain_rows=strain_rows,
+        category_rows=category_rows,
+        product_rows=product_rows,
+        customer_orders_rows=customer_orders_rows,
+        sold_by_state_rows=sold_by_state_rows,
+        money_made_rows=money_made_rows
+    )
+
+
+def dataadmin():
+    return dict(message="Hello from Cannalytics!")
+
+
+def brands():
+    grid = SQLFORM.grid(db.brands)
+    return dict(grid=grid)
+
+
+def customers():
+    grid = SQLFORM.grid(db.customers)
+    return dict(grid=grid)
+
+
+def events():
+    grid = SQLFORM.grid(db.events)
+    return dict(grid=grid)
+
+
+def states():
+    grid = SQLFORM.grid(db.states)
+    return dict(grid=grid)
+
+
+def products():
+    grid = SQLFORM.grid(db.products)
+    return dict(grid=grid)
+
+
+def orders():
+    grid = SQLFORM.grid(db.orders)
+    return dict(grid=grid)
+
+
+# ---- API (example) -----
+@auth.requires_login()
+def api_get_user_email():
+    if not request.env.request_method == "GET":
+        raise HTTP(403)
+    return response.json({"status": "success", "email": auth.user.email})
+
+
+# ---- Smart Grid (example) -----
+@auth.requires_membership("admin")  # can only be accessed by members of admin groupd
+def grid():
+    response.view = "generic.html"  # use a generic view
+    tablename = request.args(0)
+    if not tablename in db.tables:
+        raise HTTP(403)
+    grid = SQLFORM.smartgrid(
+        db[tablename], args=[tablename], deletable=False, editable=False
+    )
+    return dict(grid=grid)
+
+
+# ---- Embedded wiki (example) ----
+def wiki():
+    auth.wikimenu()  # add the wiki to the menu
+    return auth.wiki()
+
+
+# ---- Action for login/register/etc (required for auth) -----
+def user():
+    """
+    exposes:
+    http://..../[app]/default/user/login
+    http://..../[app]/default/user/logout
+    http://..../[app]/default/user/register
+    http://..../[app]/default/user/profile
+    http://..../[app]/default/user/retrieve_password
+    http://..../[app]/default/user/change_password
+    http://..../[app]/default/user/bulk_register
+    use @auth.requires_login()
+        @auth.requires_membership('group name')
+        @auth.requires_permission('read','table name',record_id)
+    to decorate functions that need access control
+    also notice there is http://..../[app]/appadmin/manage/auth to allow administrator to manage users
+    """
+    return dict(form=auth())
+
+
+# ---- action to server uploaded static content (required) ---
+@cache.action()
+def download():
+    """
+    allows downloading of uploaded files
+    http://..../[app]/default/download/[filename]
+    """
+    return response.download(request, db)
